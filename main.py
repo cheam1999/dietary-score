@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pickle
 import json
+import pandas as pd
 
 app = FastAPI()
 
@@ -30,8 +31,21 @@ class model_input(BaseModel):
     Protein: float
     Sodium: float
     Calcium: float
+    
+class model_output(BaseModel):
+    
+    Carb: int
+    Protein: int
+    Sodium: int
+    Calcium: int
+    Score: float
+
 
 dietary_model = pickle.load(open('dietary_score.sav','rb'))
+carb_model = pickle.load(open('carb_model.sav','rb'))
+protein_model = pickle.load(open('protein_model.sav','rb'))
+sodium_model = pickle.load(open('sodium_model.sav','rb'))
+calcium_model = pickle.load(open('calcium_model.sav','rb'))
 
 @app.post('/dietary_score')
 
@@ -45,10 +59,13 @@ def dietary_pred(input_parameters: model_input):
     sodium = input_dictionary['Sodium']
     calcium = input_dictionary['Calcium']
     
-   # input_list = [carb,protein,sodium,calcium]
+    # compute nutrient level
+    carb_level = carb_model.predict([[carb]])
+    protein_level = protein_model.predict([[protein]])
+    sodium_level = sodium_model.predict([[sodium]])
+    calcium_level = calcium_model.predict([[calcium]])
     
-   # prediction = dietary_model.predict([input_list])
-   
+    # compute dietary score
     dietary_model.input['Carbohydrates'] = carb
     dietary_model.input['Protein'] = protein
     dietary_model.input['Sodium'] = sodium
@@ -56,4 +73,15 @@ def dietary_pred(input_parameters: model_input):
     
     dietary_model.compute()
     
-    return dietary_model.output['Score']
+    output = {
+        "Carb": carb_level,
+        "Protein": protein_level,
+        "Sodium": sodium_level,
+        "Calcium": calcium_level,
+        "Score": dietary_model.output['Score']
+        }
+    
+    #output_json = json.dumps(output)
+    output_json = pd.Series(output).to_json(orient='values')
+    
+    return output_json
